@@ -1,3 +1,35 @@
+# AulaSync — Desarrollo local (MVP)
+
+Pasos rápidos:
+
+1. Copia las variables de entorno:
+
+```
+cp .env.local.example .env.local
+```
+
+Rellena `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+
+2. Instala dependencias (si no se instalaron automáticamente):
+
+```bash
+cd aula-sync
+npm install
+```
+
+3. Ejecuta en desarrollo:
+
+```bash
+npm run dev
+```
+
+4. En Supabase: crea las tablas usando `sql/schema.sql` y configura OAuth (Google) y variables.
+
+Archivos añadidos por la guía inicial:
+- `sql/schema.sql` — esquema SQL
+- `lib/supabaseClient.ts` — cliente Supabase
+- `services/*` — servicios básicos (`auth`, `classrooms`, `tasks`)
+- `hooks/useTasks.ts` — hook de ejemplo
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
