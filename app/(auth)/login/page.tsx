@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { signInWithGoogle } from '@/services/auth'
+import { loginWithGoogle } from '@/services/auth'
 import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/ui/Container'
 import { Card } from '@/components/ui/Card'
@@ -25,8 +25,7 @@ export default function LoginPage() {
     setIsLoggingIn(true)
     setError(null)
     try {
-      const { error } = await signInWithGoogle()
-      if (error) setError(error.message)
+      await loginWithGoogle()
     } catch (err: any) {
       setError(err.message || 'Error inesperado al iniciar sesión.')
     } finally {
