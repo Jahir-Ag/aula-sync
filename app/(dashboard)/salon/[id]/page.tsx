@@ -8,7 +8,7 @@ import { es } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, Trash2, Pencil, X, Check,
   MoreVertical, Share2, Copy, LogOut, Users, ShieldAlert,
-  ShieldCheck, UserMinus, CheckCircle2, Circle
+  ShieldCheck, UserMinus, CheckCircle2, Circle, Calendar
 } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useAuth } from '@/contexts/AuthContext'
@@ -25,6 +25,19 @@ import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/ui/Container'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
+
+const SUBJECTS = [
+  'Matemáticas',
+  'Español',
+  'Inglés',
+  'Cívica',
+  'Geografía',
+  'Educación Física',
+  'Ciencias Naturales',
+  'Historia',
+  'F.D.C.',
+  'Tecnología de la Información'
+]
 
 export default function SalonPage() {
   const params = useParams()
@@ -48,9 +61,11 @@ export default function SalonPage() {
     goPrev,
     createTask,
     updateTask,
-    toggleComplete,
     deleteTask,
+    goToDate,
   } = useTasks(id)
+
+  const [dateInputVal, setDateInputVal] = useState('')
 
   // Formularios
   const [showCreate, setShowCreate] = useState(false)
@@ -65,7 +80,12 @@ export default function SalonPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDesc, setEditDesc] = useState('')
+  const [editSubject, setEditSubject] = useState('')
+  const [editDueDate, setEditDueDate] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Modal de confirmación para eliminar
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
 
   const fetchClassroomData = async () => {
     try {
@@ -87,6 +107,20 @@ export default function SalonPage() {
 
   const myMembership = members.find(m => m.user_id === user?.id)
   const isAdmin = myMembership?.role === 'admin'
+
+  const handleDateChange = (val: string, setter: (val: string) => void) => {
+    if (!val) {
+      setter(val)
+      return
+    }
+    const date = new Date(val + 'T12:00:00')
+    const day = date.getDay()
+    if (day === 0 || day === 6) {
+      showToast('Las fechas de entrega solo pueden ser de lunes a viernes.', 'error')
+      return
+    }
+    setter(val)
+  }
 
   // --- Acciones de Tareas ---
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -118,6 +152,8 @@ export default function SalonPage() {
       await updateTask(task.id, {
         title: editTitle.trim(),
         description: editDesc.trim() || undefined,
+        subject: editSubject.trim() || undefined,
+        due_date: editDueDate,
       })
       setEditingId(null)
       showToast('Tarea actualizada', 'success')
@@ -132,15 +168,19 @@ export default function SalonPage() {
     setEditingId(task.id)
     setEditTitle(task.title)
     setEditDesc(task.description || '')
+    setEditSubject(task.subject || '')
+    setEditDueDate(task.due_date)
   }
 
-  const handleDelete = async (taskId: string) => {
-    if (!confirm('¿Eliminar esta tarea?')) return
+  const handleDelete = async () => {
+    if (!taskToDelete) return
     try {
-      await deleteTask(taskId)
+      await deleteTask(taskToDelete)
       showToast('Tarea eliminada', 'info')
     } catch (err: any) {
       showToast(err.message, 'error')
+    } finally {
+      setTaskToDelete(null)
     }
   }
 
@@ -203,8 +243,6 @@ export default function SalonPage() {
 
   // Colores de tarea
   const getTaskColorClass = (task: Task) => {
-    if (task.is_completed) return 'border-l-4 border-l-green-500 opacity-75'
-    
     // Parse due_date ignoring timezones properly
     const [y, m, d] = task.due_date.split('-').map(Number)
     const due = new Date(y, m - 1, d)
@@ -228,8 +266,12 @@ export default function SalonPage() {
             ← Volver a Mis Salones
           </Link>
           <div className="flex items-center gap-3 mt-1">
-            <h1 className="text-3xl font-bold text-gray-900">
-              {loadingClassroom ? '...' : classroom?.name ?? `Salón ${id}`}
+            <h1 className="text-3xl font-bold text-gray-900 min-w-0">
+              {loadingClassroom ? (
+                <span className="inline-block w-48 h-8 bg-gray-200 animate-pulse rounded-lg" />
+              ) : (
+                classroom?.name || `Salón ${id}`
+              )}
             </h1>
             <button
               onClick={() => setShowMembers(!showMembers)}
@@ -343,9 +385,39 @@ export default function SalonPage() {
         </Card>
       )}
 
+      {/* Selector de fecha rápido */}
+      <div className="flex justify-end mb-3">
+        <div className="relative">
+          <Button 
+            variant="outline" 
+            onClick={() => (document.getElementById('hidden-date-picker') as HTMLInputElement)?.showPicker()}
+            className="flex items-center gap-2 text-sm bg-white border-gray-200 shadow-sm hover:border-blue-300"
+          >
+            <Calendar className="w-4 h-4 text-blue-600" />
+            Elegir fecha
+          </Button>
+          <input 
+            id="hidden-date-picker"
+            type="date" 
+            className="absolute invisible pointer-events-none opacity-0"
+            value={dateInputVal}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val) {
+                goToDate(new Date(val + 'T12:00:00'));
+                setDateInputVal(val);
+              }
+            }}
+          />
+        </div>
+      </div>
+
       {/* Navegación de fecha */}
-      <div className="flex items-center justify-between mb-6 bg-white rounded-2xl border border-gray-200 px-4 py-3">
-        <button onClick={goPrev} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+      <div className="flex items-center justify-between mb-6 bg-white rounded-2xl border border-gray-200 px-4 py-3 shadow-sm">
+        <button 
+          onClick={goPrev}
+          className="p-2 hover:bg-gray-50 rounded-xl transition-colors"
+        >
           <ChevronLeft className="w-5 h-5 text-gray-600" />
         </button>
 
@@ -358,7 +430,10 @@ export default function SalonPage() {
           )}
         </div>
 
-        <button onClick={goNext} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+        <button 
+          onClick={goNext}
+          className="p-2 hover:bg-gray-50 rounded-xl transition-colors"
+        >
           <ChevronRight className="w-5 h-5 text-gray-600" />
         </button>
       </div>
@@ -372,29 +447,37 @@ export default function SalonPage() {
 
       {/* Formulario crear tarea */}
       {showCreate && (
-        <Card className="mb-6 border-blue-200 bg-blue-50">
-          <h3 className="text-lg font-semibold mb-4">Nueva Tarea</h3>
+        <Card className="mb-6 border-sky-300 bg-sky-100">
+          <h3 className="text-lg font-bold text-sky-900 mb-4">Nueva Tarea</h3>
           <form onSubmit={handleCreateTask} className="flex flex-col gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
-                <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} required placeholder="Ej. Leer capítulo 3" />
+                <Input className="bg-white" value={newTitle} onChange={e => setNewTitle(e.target.value)} required placeholder="Ej. Leer capítulo 3" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Materia</label>
-                <Input value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="Ej. Matemáticas" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Materia *</label>
+                <select
+                  value={newSubject}
+                  onChange={e => setNewSubject(e.target.value)}
+                  required
+                  className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="" disabled>Elegir materia</option>
+                  {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-              <Input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Detalles de la tarea..." />
+              <Input className="bg-white" value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Detalles de la tarea..." />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de entrega *</label>
-              <Input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} required />
+              <Input className="bg-white" type="date" value={newDueDate} onChange={e => handleDateChange(e.target.value, setNewDueDate)} required />
             </div>
             <div className="flex gap-2 justify-end mt-2">
-              <Button variant="outline" type="button" onClick={() => setShowCreate(false)}>Cancelar</Button>
+              <Button variant="outline" type="button" className="bg-white" onClick={() => setShowCreate(false)}>Cancelar</Button>
               <Button type="submit" disabled={creating}>{creating ? 'Guardando...' : 'Guardar'}</Button>
             </div>
           </form>
@@ -414,10 +497,14 @@ export default function SalonPage() {
         )}
 
         {!loading && !error && tasks.length === 0 && (
-          <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-2xl">
-            <p className="text-gray-500">No hay tareas para este día.</p>
+          <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-2xl bg-white/50">
+            <p className="text-gray-500 font-medium">No hay tareas para este día.</p>
             <p className="text-gray-400 text-sm mt-1">¡Usa el botón "Crear tarea" para agregar una!</p>
           </div>
+        )}
+        {/* Debug Log (can be removed later) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="hidden">{console.log('Task state:', { loading, error, count: tasks.length })}</div>
         )}
 
         {!loading && tasks.map(task => (
@@ -425,22 +512,24 @@ export default function SalonPage() {
             {editingId === task.id ? (
               <div className="flex flex-col gap-3">
                 <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Título" />
+                <select
+                  value={editSubject}
+                  onChange={e => setEditSubject(e.target.value)}
+                  required
+                  className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="" disabled>Elegir materia</option>
+                  {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
                 <Input value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Descripción" />
+                <Input type="date" value={editDueDate} onChange={e => handleDateChange(e.target.value, setEditDueDate)} />
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditingId(null)} className="p-1.5 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-                  <button onClick={() => handleEditSave(task)} disabled={saving} className="p-1.5 text-green-600 hover:text-green-700"><Check className="w-5 h-5" /></button>
+                  <button onClick={() => setEditingId(null)} className="p-1.5 text-gray-400 hover:text-gray-600 bg-white rounded-lg border border-gray-100"><X className="w-5 h-5" /></button>
+                  <button onClick={() => handleEditSave(task)} disabled={saving} className="p-1.5 text-green-600 hover:text-green-700 bg-white rounded-lg border border-gray-100"><Check className="w-5 h-5" /></button>
                 </div>
               </div>
             ) : (
-              <div className="flex gap-4 items-start">
-                {/* Checkbox de completado */}
-                <button 
-                  onClick={() => toggleComplete(task.id, task.is_completed)}
-                  className={`mt-1 shrink-0 ${task.is_completed ? 'text-green-500' : 'text-gray-300 hover:text-gray-400'} transition-colors`}
-                >
-                  {task.is_completed ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
-                </button>
-
+              <div className="flex gap-4 items-start pl-2">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     {task.subject && (
@@ -449,11 +538,11 @@ export default function SalonPage() {
                       </span>
                     )}
                   </div>
-                  <h4 className={`text-base font-medium ${task.is_completed ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                  <h4 className="text-base font-medium text-gray-900">
                     {task.title}
                   </h4>
                   {task.description && (
-                    <p className={`text-sm mt-0.5 ${task.is_completed ? 'text-gray-400 line-through' : 'text-gray-500'}`}>
+                     <p className="text-sm mt-0.5 text-gray-500">
                       {task.description}
                     </p>
                   )}
@@ -465,7 +554,7 @@ export default function SalonPage() {
                     <button onClick={() => startEdit(task)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar">
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button onClick={() => handleDelete(task.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
+                    <button onClick={() => setTaskToDelete(task.id)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -475,6 +564,20 @@ export default function SalonPage() {
           </Card>
         ))}
       </div>
+
+      {/* Modal Confirmar Eliminación */}
+      {taskToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <Card className="max-w-md w-full animate-[slideIn_0.2s_ease-out]">
+            <h3 className="text-xl font-bold mb-2">¿Eliminar tarea?</h3>
+            <p className="text-gray-500 mb-6">¿Estás seguro de que deseas eliminar esta tarea? Esta acción no se puede deshacer.</p>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setTaskToDelete(null)}>Cancelar</Button>
+              <Button onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white">Eliminar</Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </Container>
   )
 }

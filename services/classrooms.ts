@@ -36,15 +36,22 @@ export async function getMyClassrooms(
 ): Promise<ClassroomWithRole[]> {
   const { data, error } = await supabase
     .from('classroom_members')
-    .select('role, classrooms(*)')
+    .select('role, classrooms!classroom_id(*)')
     .eq('user_id', userId)
 
-  if (error) throw error
+  if (error) {
+    console.error('Error fetching classrooms:', error)
+    throw error
+  }
 
-  return (data || []).map((row: any) => ({
-    ...row.classrooms,
-    role: row.role,
-  }))
+  console.log('Classrooms fetched data:', JSON.stringify(data, null, 2))
+
+  return (data || [])
+    .filter((row: any) => row.classrooms)
+    .map((row: any) => ({
+      ...row.classrooms,
+      role: row.role,
+    }))
 }
 
 // ─── Unirse a salón por código ────────────────────────────────

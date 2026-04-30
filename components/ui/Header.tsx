@@ -10,8 +10,13 @@ export function Header() {
   const router = useRouter()
 
   const handleLogout = async () => {
-    await signOut()
-    router.replace('/login')
+    console.log('Logging out...')
+    try {
+      await signOut()
+      window.location.href = '/login'
+    } catch (err) {
+      console.error('Logout failed:', err)
+    }
   }
 
   // Iniciales para avatar

@@ -52,21 +52,7 @@ export async function updateTask(
   return updated
 }
 
-// ─── Marcar como completada / pendiente ──────────────────────
-export async function toggleTaskCompleted(
-  id: string,
-  is_completed: boolean
-): Promise<Task> {
-  const { data, error } = await supabase
-    .from('tasks')
-    .update({ is_completed })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
-}
+// La función toggleTaskCompleted ha sido eliminada ya que la columna is_completed no se utiliza.
 
 // ─── Eliminar tarea ───────────────────────────────────────────
 export async function deleteTask(id: string): Promise<void> {

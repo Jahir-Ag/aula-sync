@@ -7,7 +7,6 @@ import {
   getTasksByDate,
   createTask as createTaskService,
   updateTask as updateTaskService,
-  toggleTaskCompleted as toggleTaskCompletedService,
   deleteTask as deleteTaskService,
 } from '@/services/tasks'
 import { Task } from '@/types'
@@ -87,10 +86,7 @@ export function useTasks(classroomId: string) {
     return updated
   }
 
-  const toggleComplete = async (id: string, current: boolean) => {
-    await toggleTaskCompletedService(id, !current)
-    await fetchTasks()
-  }
+
 
   const deleteTask = async (id: string) => {
     await deleteTaskService(id)
@@ -108,7 +104,6 @@ export function useTasks(classroomId: string) {
     goToDate,
     createTask,
     updateTask,
-    toggleComplete,
     deleteTask,
     fetchTasks,
   }
