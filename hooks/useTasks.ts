@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { addDays, format, isWeekend } from 'date-fns'
 import { useAuth } from '@/contexts/AuthContext'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getTasksByDate,
   createTask as createTaskService,
@@ -27,35 +28,35 @@ function toNearestBusinessDay(date: Date): Date {
   return addBusinessDays(date, 1)
 }
 
+const TASKS_QUERY_KEY_PREFIX = 'tasks'
+
 export function useTasks(classroomId: string) {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
 
   const [currentDate, setCurrentDate] = useState<Date>(() =>
     toNearestBusinessDay(addDays(new Date(), 1))
   )
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const dateStr = format(currentDate, 'yyyy-MM-dd')
+  const tasksQueryKey = [TASKS_QUERY_KEY_PREFIX, classroomId, dateStr]
 
-  const fetchTasks = useCallback(async () => {
-    if (!classroomId) return
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await getTasksByDate(classroomId, dateStr)
-      setTasks(data)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [classroomId, dateStr])
-
-  useEffect(() => {
-    fetchTasks()
-  }, [fetchTasks])
+  const { data: tasks = [], isLoading, error, refetch } = useQuery({
+    queryKey: tasksQueryKey,
+    queryFn: async () => {
+      if (!classroomId) return []
+      try {
+        return await getTasksByDate(classroomId, dateStr)
+      } catch (err) {
+        console.error('Error fetching tasks:', err)
+        throw err
+      }
+    },
+    enabled: !!classroomId,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+    retry: 1, // Solo 1 reintento para evitar múltiples solicitudes
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 5000), // Max 5 segundos
+  })
 
   const goNext = () => setCurrentDate(prev => addBusinessDays(prev, 1))
   const goPrev = () => setCurrentDate(prev => addBusinessDays(prev, -1))
@@ -67,36 +68,52 @@ export function useTasks(classroomId: string) {
     subject?: string
     due_date: string
   }) => {
-    if (!user) return
-    const task = await createTaskService({
-      ...data,
-      classroom_id: classroomId,
-      created_by: user.id,
-    })
-    await fetchTasks()
-    return task
+    if (!user) throw new Error('Usuario no autenticado')
+    try {
+      const task = await createTaskService({
+        ...data,
+        classroom_id: classroomId,
+        created_by: user.id,
+      })
+      // Invalidar todas las queries de tareas de este salón y esperar a que se refresque
+      await queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] })
+      return task
+    } catch (err) {
+      console.error('Error creating task:', err)
+      throw err
+    }
   }
 
   const updateTask = async (
     id: string,
     data: Partial<Pick<Task, 'title' | 'description' | 'subject' | 'due_date'>>
   ) => {
-    const updated = await updateTaskService(id, data)
-    await fetchTasks()
-    return updated
+    try {
+      const updated = await updateTaskService(id, data)
+      // Invalidar todas las queries de tareas de este salón
+      await queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] })
+      return updated
+    } catch (err) {
+      console.error('Error updating task:', err)
+      throw err
+    }
   }
 
-
-
   const deleteTask = async (id: string) => {
-    await deleteTaskService(id)
-    await fetchTasks()
+    try {
+      await deleteTaskService(id)
+      // Invalidar todas las queries de tareas de este salón
+      await queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] })
+    } catch (err) {
+      console.error('Error deleting task:', err)
+      throw err
+    }
   }
 
   return {
     tasks,
-    loading,
-    error,
+    loading: isLoading,
+    error: error?.message || null,
     currentDate,
     dateStr,
     goNext,
@@ -105,6 +122,6 @@ export function useTasks(classroomId: string) {
     createTask,
     updateTask,
     deleteTask,
-    fetchTasks,
+    fetchTasks: () => queryClient.refetchQueries({ queryKey: tasksQueryKey }),
   }
 }

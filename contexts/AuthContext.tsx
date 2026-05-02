@@ -28,48 +28,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [authReady, setAuthReady] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(false)
+
+  const loading = !authReady || profileLoading
 
   const fetchProfile = async (userId: string) => {
+    setProfileLoading(true)
     try {
       const p = await getProfile(userId)
       setProfile(p)
     } catch {
       setProfile(null)
+    } finally {
+      setProfileLoading(false)
     }
   }
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id)
+    if (userId) await fetchProfile(userId)
   }
 
+  const userId = user?.id
+
   useEffect(() => {
-    // Obtener sesión inicial
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    let active = true
+
+    // Obtener sesión inicial sin trabajo pesado dentro del callback de auth.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active) return
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      }
-      setLoading(false)
+      setAuthReady(true)
     })
 
-    // Escuchar cambios de auth
+    // Escuchar cambios de auth sin awaits para evitar deadlocks del lock interno.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         setSession(session)
         setUser(session?.user ?? null)
-        if (session?.user) {
-          await fetchProfile(session.user.id)
-        } else {
-          setProfile(null)
-        }
-        setLoading(false)
+        if (!session) setProfile(null)
+        setAuthReady(true)
       }
     )
 
-    return () => subscription.unsubscribe()
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        void supabase.auth.getSession()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [])
+
+  useEffect(() => {
+    if (!authReady) return
+
+    if (!userId) {
+      return
+    }
+
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        setProfileLoading(true)
+        const p = await getProfile(userId)
+        if (!cancelled) setProfile(p)
+      } catch {
+        if (!cancelled) setProfile(null)
+      } finally {
+        if (!cancelled) setProfileLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [authReady, userId])
 
   const signOut = async () => {
     await supabase.auth.signOut()

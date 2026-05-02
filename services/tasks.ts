@@ -1,7 +1,12 @@
 import { supabase } from '@/lib/supabaseClient'
+import { withTimeout } from '@/lib/utils/timeoutHelper'
+import { runWithAuthRecovery } from '@/lib/utils/supabaseHelper'
 import { Task } from '@/types'
 
-// ─── Crear tarea ──────────────────────────────────────────────
+// Timeout de 20 segundos para operaciones
+const OPERATION_TIMEOUT = 20000
+
+// Crear tarea
 export async function createTask(task: {
   classroom_id: string
   title: string
@@ -10,52 +15,94 @@ export async function createTask(task: {
   due_date: string
   created_by: string
 }): Promise<Task> {
-  const { data, error } = await supabase
-    .from('tasks')
-    .insert([task])
-    .select()
-    .single()
+  try {
+    const { data, error } = await runWithAuthRecovery(
+      () =>
+        withTimeout(
+          supabase.from('tasks').insert([task]).select().single(),
+          OPERATION_TIMEOUT,
+          'createTask'
+        ),
+      { operationName: 'createTask', timeoutMs: OPERATION_TIMEOUT }
+    )
 
-  if (error) throw error
-  return data
+    if (error) throw new Error(error.message)
+    return data
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al crear tarea'
+    console.error('Error creating task:', message)
+    throw new Error(message)
+  }
 }
 
-// ─── Obtener tareas por fecha ─────────────────────────────────
+// Obtener tareas por fecha
 export async function getTasksByDate(
   classroomId: string,
   date: string
 ): Promise<Task[]> {
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('*')
-    .eq('classroom_id', classroomId)
-    .eq('due_date', date)
-    .order('created_at', { ascending: true })
+  try {
+    const { data, error } = await runWithAuthRecovery(
+      () =>
+        withTimeout(
+          supabase
+            .from('tasks')
+            .select('*')
+            .eq('classroom_id', classroomId)
+            .eq('due_date', date)
+            .order('created_at', { ascending: true }),
+          OPERATION_TIMEOUT,
+          'getTasksByDate'
+        ),
+      { operationName: 'getTasksByDate', timeoutMs: OPERATION_TIMEOUT }
+    )
 
-  if (error) throw error
-  return data || []
+    if (error) throw new Error(error.message)
+    return data || []
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al obtener tareas'
+    console.error('Error fetching tasks:', message)
+    throw new Error(message)
+  }
 }
 
-// ─── Editar tarea ─────────────────────────────────────────────
+// Editar tarea
 export async function updateTask(
   id: string,
   data: Partial<Pick<Task, 'title' | 'description' | 'subject' | 'due_date'>>
 ): Promise<Task> {
-  const { data: updated, error } = await supabase
-    .from('tasks')
-    .update(data)
-    .eq('id', id)
-    .select()
-    .single()
+  try {
+    const { data: updated, error } = await runWithAuthRecovery(
+      () =>
+        withTimeout(
+          supabase.from('tasks').update(data).eq('id', id).select().single(),
+          OPERATION_TIMEOUT,
+          'updateTask'
+        ),
+      { operationName: 'updateTask', timeoutMs: OPERATION_TIMEOUT }
+    )
 
-  if (error) throw error
-  return updated
+    if (error) throw new Error(error.message)
+    return updated
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al actualizar tarea'
+    console.error('Error updating task:', message)
+    throw new Error(message)
+  }
 }
 
-// La función toggleTaskCompleted ha sido eliminada ya que la columna is_completed no se utiliza.
+// Nota: la columna `is_completed` no se gestiona en este archivo.
 
-// ─── Eliminar tarea ───────────────────────────────────────────
+// Eliminar tarea
 export async function deleteTask(id: string): Promise<void> {
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
-  if (error) throw error
+  try {
+    const { error } = await runWithAuthRecovery(
+      () => withTimeout(supabase.from('tasks').delete().eq('id', id), OPERATION_TIMEOUT, 'deleteTask'),
+      { operationName: 'deleteTask', timeoutMs: OPERATION_TIMEOUT }
+    )
+    if (error) throw new Error(error.message)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al eliminar tarea'
+    console.error('Error deleting task:', message)
+    throw new Error(message)
+  }
 }

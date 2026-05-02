@@ -2,20 +2,28 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from './Button'
+import { useToast } from '@/contexts/ToastContext'
+import { Card } from './Card'
 
 export function Header() {
   const { user, profile, hasProfile, signOut } = useAuth()
   const router = useRouter()
+  const { showToast } = useToast()
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
 
   const handleLogout = async () => {
+    setShowLogoutModal(false)
     console.log('Logging out...')
     try {
       await signOut()
+      showToast('Sesión cerrada correctamente', 'success')
       window.location.href = '/login'
     } catch (err) {
       console.error('Logout failed:', err)
+      showToast('Error al cerrar sesión', 'error')
     }
   }
 
@@ -52,7 +60,7 @@ export function Header() {
 
               <Button
                 variant="outline"
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 className="text-sm px-3 py-1.5 h-auto"
               >
                 Salir
@@ -70,6 +78,22 @@ export function Header() {
           )}
         </div>
       </div>
+
+      {/* Modal de confirmación de logout */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <Card className="max-w-md w-full animate-[slideIn_0.2s_ease-out]">
+            <h3 className="text-xl font-bold mb-2">¿Cerrar sesión?</h3>
+            <p className="text-gray-500 mb-6">¿Estás seguro de que deseas cerrar tu sesión?</p>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setShowLogoutModal(false)}>Cancelar</Button>
+              <Button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white">
+                Cerrar sesión
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </header>
   )
 }

@@ -1,51 +1,56 @@
 -- Schema for AulaSync
+-- AulaSync — esquema base (extensiones y tablas)
+-- Este archivo crea las tablas principales; ejecutar en Supabase SQL Editor.
+
 create extension if not exists "uuid-ossp";
 
-create table classrooms (
+-- Tabla de perfiles vinculada a auth.users
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  nombre_usuario text,
+  nombre_hijo text,
+  created_at timestamptz default now()
+);
+
+-- Salones
+create table if not exists classrooms (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
-  created_by uuid,
-  created_at timestamp default now()
+  invite_code text unique not null,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
 );
 
-create table classroom_members (
+-- Miembros de salón
+create table if not exists classroom_members (
   id uuid primary key default uuid_generate_v4(),
-  user_id uuid,
-  classroom_id uuid,
-  role text default 'member'
+  classroom_id uuid references classrooms(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  role text check (role in ('admin','member')) default 'member',
+  created_at timestamptz default now(),
+  unique (classroom_id, user_id)
 );
 
-create table tasks (
+-- Tareas
+create table if not exists tasks (
   id uuid primary key default uuid_generate_v4(),
-  classroom_id uuid,
+  classroom_id uuid references classrooms(id) on delete cascade,
+  created_by uuid references auth.users(id) on delete cascade,
   title text not null,
   description text,
-  due_date date,
-  created_by uuid,
-  created_at timestamp default now()
+  subject text,
+  due_date date not null,
+  is_completed boolean default false,
+  created_at timestamptz default now()
 );
 
-create table invites (
+-- Invitaciones
+create table if not exists invites (
   id uuid primary key default uuid_generate_v4(),
-  classroom_id uuid,
+  classroom_id uuid references classrooms(id) on delete cascade,
   code text unique,
-  expires_at timestamp
+  expires_at timestamptz
 );
 
--- RLS enable (apply in Supabase SQL editor as needed)
-ALTER TABLE classrooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE classroom_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE invites ENABLE ROW LEVEL SECURITY;
-
--- Example policy for tasks (apply in Supabase SQL editor)
-create policy "Users can view tasks from their classrooms"
-on tasks
-for select
-using (
-  classroom_id in (
-    select classroom_id
-    from classroom_members
-    where user_id = auth.uid()
-  )
-);
+-- NOTA: las políticas RLS y los índices se definen en los archivos
+-- sql/profiles.sql y sql/hardening.sql. Para instalación rápida use sql/setup.sql

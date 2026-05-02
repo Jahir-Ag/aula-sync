@@ -11,11 +11,10 @@ import {
   ShieldCheck, UserMinus, CheckCircle2, Circle, Calendar
 } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
+import { useClassroomData } from '@/hooks/useClassroomData'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import {
-  getClassroomById,
-  getClassroomMembers,
   changeUserRole,
   removeMember,
   leaveClassroom
@@ -25,6 +24,9 @@ import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/ui/Container'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
+import { ExpandableDescription } from '@/components/ExpandableDescription'
+import { ResponsiveDatePicker } from '@/components/ResponsiveDatePicker'
+import { getTodayString } from '@/lib/utils/dateFormat'
 
 const SUBJECTS = [
   'Matemáticas',
@@ -42,15 +44,12 @@ const SUBJECTS = [
 export default function SalonPage() {
   const params = useParams()
   const router = useRouter()
-  const id = params.id as string
+  const slug = params.id as string
   const { user } = useAuth()
   const { showToast } = useToast()
 
-  const [classroom, setClassroom] = useState<Classroom | null>(null)
-  const [members, setMembers] = useState<ClassroomMemberWithProfile[]>([])
-  const [loadingClassroom, setLoadingClassroom] = useState(true)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [showMembers, setShowMembers] = useState(false)
+  // Usar useClassroomData con React Query para persistencia
+  const { classroom, members, loading: loadingClassroom, realId } = useClassroomData(slug)
 
   const {
     tasks,
@@ -63,7 +62,11 @@ export default function SalonPage() {
     updateTask,
     deleteTask,
     goToDate,
-  } = useTasks(id)
+  } = useTasks(realId || '')
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [showMembers, setShowMembers] = useState(false)
+  const [showDatePicker, setShowDatePicker] = useState<'navigate' | 'create' | 'edit' | null>(null)
 
   const [dateInputVal, setDateInputVal] = useState('')
 
@@ -72,10 +75,9 @@ export default function SalonPage() {
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newSubject, setNewSubject] = useState('')
-  const [newDueDate, setNewDueDate] = useState(() =>
-    format(new Date(new Date().setDate(new Date().getDate() + 1)), 'yyyy-MM-dd')
-  )
+  const [newDueDate, setNewDueDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [creating, setCreating] = useState(false)
+  const [showLeaveModal, setShowLeaveModal] = useState(false)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
@@ -87,23 +89,19 @@ export default function SalonPage() {
   // Modal de confirmación para eliminar
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
 
-  const fetchClassroomData = async () => {
-    try {
-      const cls = await getClassroomById(id)
-      setClassroom(cls)
-      const mems = await getClassroomMembers(id)
-      setMembers(mems)
-    } catch (err) {
-      showToast('Error al cargar datos del salón', 'error')
-    } finally {
-      setLoadingClassroom(false)
-    }
-  }
-
+  // Mostrar error si salón no existe
   useEffect(() => {
-    if (id) fetchClassroomData()
+    if (!loadingClassroom && !classroom) {
+      showToast('Salón no encontrado', 'error')
+      router.push('/salones')
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [loadingClassroom, classroom])
+
+  // Cerrar formulario de crear tarea cuando cambia la fecha
+  useEffect(() => {
+    setShowCreate(false)
+  }, [currentDate])
 
   const myMembership = members.find(m => m.user_id === user?.id)
   const isAdmin = myMembership?.role === 'admin'
@@ -201,13 +199,27 @@ export default function SalonPage() {
   }
 
   const handleLeave = async () => {
-    if (!confirm('¿Estás seguro de que deseas salir del salón?')) return
+    setShowLeaveModal(true)
+  }
+
+  const handleOpenCreate = () => {
+    setNewDueDate(format(currentDate, 'yyyy-MM-dd'))
+    setShowCreate(true)
+  }
+
+  const confirmLeave = async () => {
     try {
-      await leaveClassroom(id, user!.id)
+      if (members.length === 1) {
+        // Si es el único miembro, se eliminará el salón automáticamente
+        showToast('Salón eliminado (eras el único miembro)', 'info')
+      }
+      await leaveClassroom(realId!, user!.id)
       showToast('Has salido del salón', 'info')
       router.push('/salones')
     } catch (err: any) {
       showToast(err.message, 'error')
+    } finally {
+      setShowLeaveModal(false)
     }
   }
 
@@ -215,8 +227,7 @@ export default function SalonPage() {
   const handleRoleChange = async (targetId: string, newRole: 'admin'|'member') => {
     if (!confirm(`¿Cambiar rol a ${newRole}?`)) return
     try {
-      await changeUserRole(id, targetId, newRole, user!.id)
-      await fetchClassroomData()
+      await changeUserRole(realId!, targetId, newRole, user!.id)
       showToast('Rol actualizado', 'success')
     } catch (err: any) {
       showToast(err.message, 'error')
@@ -226,8 +237,7 @@ export default function SalonPage() {
   const handleRemoveMember = async (targetId: string) => {
     if (!confirm('¿Eliminar a este usuario del salón?')) return
     try {
-      await removeMember(id, targetId, user!.id)
-      await fetchClassroomData()
+      await removeMember(realId!, targetId, user!.id)
       showToast('Miembro eliminado', 'info')
     } catch (err: any) {
       showToast(err.message, 'error')
@@ -270,7 +280,7 @@ export default function SalonPage() {
               {loadingClassroom ? (
                 <span className="inline-block w-48 h-8 bg-gray-200 animate-pulse rounded-lg" />
               ) : (
-                classroom?.name || `Salón ${id}`
+                classroom?.name || `Salón`
               )}
             </h1>
             <button
@@ -385,31 +395,16 @@ export default function SalonPage() {
         </Card>
       )}
 
-      {/* Selector de fecha rápido */}
+      {/* Selector de fecha rápido - visible en todos los tamaños */}
       <div className="flex justify-end mb-3">
-        <div className="relative">
-          <Button 
-            variant="outline" 
-            onClick={() => (document.getElementById('hidden-date-picker') as HTMLInputElement)?.showPicker()}
-            className="flex items-center gap-2 text-sm bg-white border-gray-200 shadow-sm hover:border-blue-300"
-          >
-            <Calendar className="w-4 h-4 text-blue-600" />
-            Elegir fecha
-          </Button>
-          <input 
-            id="hidden-date-picker"
-            type="date" 
-            className="absolute invisible pointer-events-none opacity-0"
-            value={dateInputVal}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val) {
-                goToDate(new Date(val + 'T12:00:00'));
-                setDateInputVal(val);
-              }
-            }}
-          />
-        </div>
+        <Button 
+          variant="outline" 
+          onClick={() => setShowDatePicker('navigate')}
+          className="flex items-center gap-2 text-sm bg-white border-gray-200 shadow-sm hover:border-blue-300"
+        >
+          <Calendar className="w-4 h-4 text-blue-600" />
+          Elegir fecha
+        </Button>
       </div>
 
       {/* Navegación de fecha */}
@@ -440,7 +435,7 @@ export default function SalonPage() {
 
       {/* Botón crear tarea */}
       <div className="flex justify-end mb-4">
-        <Button onClick={() => setShowCreate(true)}>
+        <Button onClick={handleOpenCreate}>
           + Crear tarea
         </Button>
       </div>
@@ -469,12 +464,20 @@ export default function SalonPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-              <Input className="bg-white" value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Detalles de la tarea..." />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción (máx. 200 caracteres)</label>
+              <Input className="bg-white" value={newDesc} onChange={e => setNewDesc(e.target.value)} maxLength={200} placeholder="Detalles de la tarea..." />
+              <p className="text-xs text-gray-500 mt-1">{newDesc.length}/200</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de entrega *</label>
-              <Input className="bg-white" type="date" value={newDueDate} onChange={e => handleDateChange(e.target.value, setNewDueDate)} required />
+              <div
+                onClick={() => setShowDatePicker('create')}
+                className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white flex items-center cursor-pointer"
+              >
+                <span className="text-gray-700">
+                  {newDueDate ? format(new Date(newDueDate + 'T12:00:00'), 'dd/MM/yyyy') : 'Seleccionar fecha'}
+                </span>
+              </div>
             </div>
             <div className="flex gap-2 justify-end mt-2">
               <Button variant="outline" type="button" className="bg-white" onClick={() => setShowCreate(false)}>Cancelar</Button>
@@ -485,7 +488,7 @@ export default function SalonPage() {
       )}
 
       {/* Lista de tareas */}
-      <div className="space-y-3">
+      <div className="space-y-3" key={`tasks-${dateStr}`}>
         {loading && (
           <>{[1, 2].map(i => <div key={i} className="h-20 rounded-2xl bg-gray-200 animate-pulse" />)}</>
         )}
@@ -493,6 +496,12 @@ export default function SalonPage() {
         {!loading && error && (
           <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">
             Error al cargar tareas: {error}
+            <button 
+              onClick={() => window.location.reload()} 
+              className="ml-2 underline hover:no-underline font-medium"
+            >
+              Recargar página
+            </button>
           </div>
         )}
 
@@ -502,12 +511,8 @@ export default function SalonPage() {
             <p className="text-gray-400 text-sm mt-1">¡Usa el botón "Crear tarea" para agregar una!</p>
           </div>
         )}
-        {/* Debug Log (can be removed later) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="hidden">{console.log('Task state:', { loading, error, count: tasks.length })}</div>
-        )}
 
-        {!loading && tasks.map(task => (
+        {!loading && tasks && tasks.length > 0 && tasks.map(task => (
           <Card key={task.id} className={`py-4 transition-all ${getTaskColorClass(task)}`}>
             {editingId === task.id ? (
               <div className="flex flex-col gap-3">
@@ -521,8 +526,18 @@ export default function SalonPage() {
                   <option value="" disabled>Elegir materia</option>
                   {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <Input value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Descripción" />
-                <Input type="date" value={editDueDate} onChange={e => handleDateChange(e.target.value, setEditDueDate)} />
+                <div>
+                  <Input value={editDesc} onChange={e => setEditDesc(e.target.value)} maxLength={200} placeholder="Descripción" />
+                  <p className="text-xs text-gray-500 mt-1">{editDesc.length}/200</p>
+                </div>
+                <div
+                  onClick={() => setShowDatePicker('edit')}
+                  className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white flex items-center cursor-pointer"
+                >
+                  <span className="text-gray-700">
+                    {editDueDate ? format(new Date(editDueDate + 'T12:00:00'), 'dd/MM/yyyy') : 'Seleccionar fecha'}
+                  </span>
+                </div>
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => setEditingId(null)} className="p-1.5 text-gray-400 hover:text-gray-600 bg-white rounded-lg border border-gray-100"><X className="w-5 h-5" /></button>
                   <button onClick={() => handleEditSave(task)} disabled={saving} className="p-1.5 text-green-600 hover:text-green-700 bg-white rounded-lg border border-gray-100"><Check className="w-5 h-5" /></button>
@@ -541,11 +556,7 @@ export default function SalonPage() {
                   <h4 className="text-base font-medium text-gray-900">
                     {task.title}
                   </h4>
-                  {task.description && (
-                     <p className="text-sm mt-0.5 text-gray-500">
-                      {task.description}
-                    </p>
-                  )}
+                  <ExpandableDescription text={task.description} />
                 </div>
 
                 {/* Acciones */}
@@ -574,6 +585,53 @@ export default function SalonPage() {
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={() => setTaskToDelete(null)}>Cancelar</Button>
               <Button onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white">Eliminar</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <ResponsiveDatePicker
+          value={
+            showDatePicker === 'navigate'
+              ? format(currentDate, 'yyyy-MM-dd')
+              : showDatePicker === 'create'
+              ? newDueDate
+              : editDueDate
+          }
+          onChange={(date) => {
+            if (showDatePicker === 'navigate') {
+              goToDate(new Date(date + 'T12:00:00'))
+              setShowDatePicker(null)
+            } else if (showDatePicker === 'create') {
+              setNewDueDate(date)
+            } else {
+              setEditDueDate(date)
+            }
+          }}
+          onClose={() => setShowDatePicker(null)}
+          onlyWeekdays={true}
+        />
+      )}
+
+      {/* Modal Confirmar Salir del Salón */}
+      {showLeaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <Card className="max-w-md w-full animate-[slideIn_0.2s_ease-out]">
+            <h3 className="text-xl font-bold mb-2">
+              {members.length === 1 ? '¿Salir del salón?' : '¿Salir del salón?'}
+            </h3>
+            <p className="text-gray-500 mb-6">
+              {members.length === 1
+                ? 'Eres el único miembro; al salir el salón y sus registros se eliminarán.'
+                : '¿Estás seguro de que deseas salir de este salón?'}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setShowLeaveModal(false)}>Cancelar</Button>
+              <Button onClick={confirmLeave} className="bg-red-600 hover:bg-red-700 text-white">
+                {members.length === 1 ? 'Salir y eliminar' : 'Salir'}
+              </Button>
             </div>
           </Card>
         </div>

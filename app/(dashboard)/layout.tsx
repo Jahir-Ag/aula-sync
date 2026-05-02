@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Header } from '@/components/ui/Header'
+import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 
 export default function DashboardLayout({
   children,
@@ -38,9 +39,9 @@ export default function DashboardLayout({
   if (!user || !hasProfile) return null
 
   return (
-    <>
+    <ErrorBoundary>
       <Header />
       <main>{children}</main>
-    </>
+    </ErrorBoundary>
   )
 }

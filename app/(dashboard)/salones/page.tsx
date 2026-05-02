@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Container } from '@/components/ui/Container'
 import { Input } from '@/components/ui/Input'
+import { generateSlug } from '@/lib/utils/slugs'
 
 export default function DashboardPage() {
   const { classrooms, loading, error, createClassroom, joinClassroom, leaveClassroom, deleteClassroom } =
@@ -48,7 +49,7 @@ export default function DashboardPage() {
   // Procesar invitación pendiente si existe
   useEffect(() => {
     const pendingCode = sessionStorage.getItem('pending_invite')
-    if (pendingCode && user) {
+    if (pendingCode && user && !loading) {
       sessionStorage.removeItem('pending_invite')
       joinClassroom(pendingCode)
         .then(() => showToast('Te has unido al salón de tu invitación', 'success'))
@@ -58,7 +59,7 @@ export default function DashboardPage() {
           }
         })
     }
-  }, [user, joinClassroom, showToast])
+  }, [user, loading, joinClassroom, showToast])
 
   const [showCreate, setShowCreate] = useState(false)
   const [showJoin, setShowJoin] = useState(false)
@@ -251,10 +252,11 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {classrooms.map(classroom => {
             const bgColor = classroomColors[classroom.id] || 'bg-white'
+            const slug = generateSlug(classroom.name)
             return (
             <Card
               key={classroom.id}
-              onClick={() => router.push(`/salon/${classroom.id}`)}
+              onClick={() => router.push(`/salon/${slug}`)}
               className={`flex flex-col justify-between hover:border-blue-400 transition-colors relative group cursor-pointer h-40 ${bgColor}`}
             >
               <div>

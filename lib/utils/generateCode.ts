@@ -15,11 +15,16 @@ export async function generateUniqueCode(): Promise<string> {
     }
 
     // Verificar unicidad
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('classrooms')
       .select('id')
-      .eq('invite_code', code)
+      .ilike('invite_code', code)
       .maybeSingle()
+
+    if (error) {
+      console.error('Error checking invite code uniqueness:', error)
+      throw error
+    }
 
     if (!data) return code // código libre, usarlo
   }
