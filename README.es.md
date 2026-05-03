@@ -1,6 +1,6 @@
 # Aula Sync
 
-🇺🇸 Read in English → ./README.md
+🇺🇸 Read in English → [README.md](./README.md)
 
 Resumen
 -------
