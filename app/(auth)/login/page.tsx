@@ -25,7 +25,13 @@ export default function LoginPage() {
     setIsLoggingIn(true)
     setError(null)
     try {
-      await loginWithGoogle()
+      const res = await loginWithGoogle()
+      // If Supabase returns a provider URL, navigate there using the router.
+      const url = (res as any)?.data?.url ?? (res as any)?.url
+      if (url) {
+        router.push(url)
+        return
+      }
     } catch (err: any) {
       setError(err.message || 'Error inesperado al iniciar sesión.')
     } finally {

@@ -7,7 +7,9 @@ export const supabase = createClient(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: false,
+      // Allow the client to parse OAuth callback data from the URL
+      // so sessions are processed automatically in both dev and prod.
+      detectSessionInUrl: true,
     },
   }
 )

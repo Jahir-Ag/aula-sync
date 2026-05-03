@@ -63,11 +63,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     // Escuchar cambios de auth sin awaits para evitar deadlocks del lock interno.
+    // Use the event to avoid overwriting an existing session with null unless
+    // the user actually signed out or the account was removed.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        if (!session) setProfile(null)
+      (event, newSession) => {
+        // Clear only on explicit sign-out or account deletion
+        if (event === 'SIGNED_OUT') {
+          //use if is necesary if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+        } else {
+          setSession(newSession)
+          setUser(newSession?.user ?? null)
+        }
         setAuthReady(true)
       }
     )

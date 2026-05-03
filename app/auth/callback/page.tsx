@@ -10,15 +10,15 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Supabase maneja automáticamente el callback
-        // Solo necesitamos verificar la sesión y redirigir
+        // With detectSessionInUrl enabled the Supabase client should have
+        // parsed the OAuth callback and persisted the session. Check the
+        // current session and redirect accordingly.
         const { data } = await supabase.auth.getSession();
-        
-        if (data.session) {
+        if (data?.session) {
           router.replace('/salones');
-        } else {
-          router.replace('/login');
+          return;
         }
+        router.replace('/login');
       } catch (error) {
         console.error('Error in auth callback:', error);
         router.replace('/login');
