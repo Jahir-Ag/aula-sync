@@ -146,6 +146,8 @@ export default function EditarSalonPage() {
       }
 
       const classroom = await createClassroom(name.trim(), cleanSubjects)
+      if (!classroom) throw new Error('Error al crear el salón')
+      
       await queryClient.invalidateQueries({ queryKey: ['classroom'] })
       showToast('Salón creado', 'success')
       router.push(`/salon/${generateSlug(classroom.name)}`)
