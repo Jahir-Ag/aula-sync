@@ -15,6 +15,7 @@ export interface Classroom {
   invite_code: string
   created_by: string
   created_at: string
+  subjects?: string[]
 }
 
 export interface ClassroomMember {

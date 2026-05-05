@@ -9,7 +9,8 @@ const OPERATION_TIMEOUT = 20000
 // ─── Crear salón ────────────────────────────────────────────
 export async function createClassroom(
   name: string,
-  userId: string
+  userId: string,
+  subjects: string[] = []
 ): Promise<Classroom> {
   if (!name || name.trim().length < 3) {
     throw new Error('El nombre del salón debe tener al menos 3 caracteres.')
@@ -21,7 +22,7 @@ export async function createClassroom(
     () =>
       supabase
         .from('classrooms')
-        .insert([{ name: name.trim(), created_by: userId, invite_code }])
+        .insert([{ name: name.trim(), created_by: userId, invite_code, subjects }])
         .select()
         .single(),
     { operationName: 'createClassroom', timeoutMs: OPERATION_TIMEOUT }
@@ -162,6 +163,33 @@ export async function getClassroomById(id: string): Promise<Classroom> {
 
   if (error) throw error
   return data
+}
+
+// ─── Actualizar salón (nombre + subjects) ──────────────────────────
+export async function updateClassroom(
+  classroomId: string,
+  updates: { name?: string; subjects?: string[] },
+  userId: string
+): Promise<void> {
+  const { data: membership } = await runWithAuthRecovery(
+    () => supabase.from('classroom_members').select('role').eq('classroom_id', classroomId).eq('user_id', userId).single(),
+    { operationName: 'updateClassroom_membership', timeoutMs: OPERATION_TIMEOUT }
+  )
+
+  if (membership?.role !== 'admin') {
+    throw new Error('Solo el administrador puede editar el salón.')
+  }
+
+  const payload: any = {}
+  if (typeof updates.name === 'string') payload.name = updates.name.trim()
+  if (Array.isArray(updates.subjects)) payload.subjects = updates.subjects
+
+  const { error } = await runWithAuthRecovery(
+    () => supabase.from('classrooms').update(payload).eq('id', classroomId),
+    { operationName: 'updateClassroom_update', timeoutMs: OPERATION_TIMEOUT }
+  )
+
+  if (error) throw error
 }
 
 // ─── Obtener salón por slug (nombre) ──────────────────────────

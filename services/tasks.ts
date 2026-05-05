@@ -65,6 +65,38 @@ export async function getTasksByDate(
   }
 }
 
+// Obtener solo las fechas que tienen tareas dentro de un rango
+export async function getTaskDatesInRange(
+  classroomId: string,
+  startDate: string,
+  endDate: string
+): Promise<string[]> {
+  try {
+    const { data, error } = await runWithAuthRecovery(
+      () =>
+        withTimeout(
+          supabase
+            .from('tasks')
+            .select('due_date')
+            .eq('classroom_id', classroomId)
+            .gte('due_date', startDate)
+            .lte('due_date', endDate),
+          OPERATION_TIMEOUT,
+          'getTaskDatesInRange'
+        ),
+      { operationName: 'getTaskDatesInRange', timeoutMs: OPERATION_TIMEOUT }
+    )
+
+    if (error) throw new Error(error.message)
+
+    return Array.from(new Set((data || []).map((item: { due_date: string }) => item.due_date)))
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al obtener fechas de tareas'
+    console.error('Error fetching task dates:', message)
+    throw new Error(message)
+  }
+}
+
 // Editar tarea
 export async function updateTask(
   id: string,

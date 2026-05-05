@@ -5,45 +5,49 @@ import { ChevronDown } from 'lucide-react'
 
 interface ExpandableDescriptionProps {
   text: string | undefined
-  maxLines?: number
+  maxChars?: number
 }
 
-export function ExpandableDescription({ text, maxLines = 2 }: ExpandableDescriptionProps) {
+export function ExpandableDescription({
+  text,
+  maxChars = 150,
+}: ExpandableDescriptionProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   if (!text) return null
 
-  const lines = text.split('\n').length
-  const isLong = lines > maxLines || text.length > 150
+  const normalizedText = text.trim()
+  const isLong = normalizedText.length > maxChars
+  const collapsedText = isLong
+    ? `${normalizedText.slice(0, maxChars).trimEnd()}...`
+    : normalizedText
 
   if (!isLong) {
-    return <p className="text-sm mt-0.5 text-gray-500">{text}</p>
+    return (
+      <p className="mt-1 overflow-hidden text-justify text-sm text-gray-500 [overflow-wrap:anywhere] [word-break:break-word] whitespace-pre-line">
+        {collapsedText}
+      </p>
+    )
   }
 
   return (
-    <div
-      className="mt-0.5 cursor-pointer"
-      onClick={() => setIsExpanded(!isExpanded)}
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
+      onClick={() => setIsExpanded((prev) => !prev)}
+      className="mt-1 block w-full text-left"
+      aria-expanded={isExpanded}
     >
       <p
-        className={`text-sm text-gray-500 transition-all ${
-          isExpanded ? '' : 'line-clamp-2'
+        className={`overflow-hidden text-justify text-sm text-gray-500 [overflow-wrap:anywhere] [word-break:break-word] whitespace-pre-line ${
+          isExpanded ? '' : 'line-clamp-1'
         }`}
       >
-        {text}
+        {isExpanded ? normalizedText : collapsedText}
       </p>
-      {!isExpanded && (
-        <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
-          Ver más <ChevronDown className="w-3 h-3" />
-        </p>
-      )}
-      {isExpanded && (
-        <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
-          Ver menos <ChevronDown className="w-3 h-3 rotate-180" />
-        </p>
-      )}
-    </div>
+      <span className="mt-1 flex items-center gap-1 text-xs font-medium text-blue-500">
+        {isExpanded ? 'Ver menos' : 'Ver más'}
+        <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+      </span>
+    </button>
   )
 }

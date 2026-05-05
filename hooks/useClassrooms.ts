@@ -31,9 +31,9 @@ export function useClassrooms() {
     staleTime: 1000 * 60 * 5, // 5 minutos
   })
 
-  const createClassroom = async (name: string) => {
+  const createClassroom = async (name: string, subjects: string[] = []) => {
     if (!user) return
-    const classroom = await createClassroomService(name, user.id)
+    const classroom = await createClassroomService(name, user.id, subjects)
     // Invalidar y refetch
     await queryClient.invalidateQueries({ queryKey: CLASSROOMS_QUERY_KEY })
     return classroom

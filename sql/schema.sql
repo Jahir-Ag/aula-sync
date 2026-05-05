@@ -18,6 +18,7 @@ create table if not exists classrooms (
   name text not null,
   invite_code text unique not null,
   created_by uuid references auth.users(id),
+  subjects jsonb default '[]',
   created_at timestamptz default now()
 );
 

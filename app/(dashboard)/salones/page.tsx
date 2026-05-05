@@ -153,7 +153,7 @@ export default function DashboardPage() {
           >
             Unirse con código
           </Button>
-          <Button onClick={() => { setShowCreate(true); setShowJoin(false) }}>
+          <Button onClick={() => router.push('/editar')}>
             Crear salón
           </Button>
         </div>
@@ -320,6 +320,14 @@ export default function DashboardPage() {
                           >
                             <LogOut className="w-4 h-4" /> Salir del salón
                           </button>
+                          {classroom.role === 'admin' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); router.push(`/editar?classroomId=${classroom.id}`); setMenuOpenId(null); }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                            >
+                              <Copy className="w-4 h-4" /> Editar
+                            </button>
+                          )}
                           {classroom.role === 'admin' && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setClassroomToDelete({ id: classroom.id, name: classroom.name }); setMenuOpenId(null); }}

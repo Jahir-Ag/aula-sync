@@ -76,7 +76,10 @@ export function useTasks(classroomId: string) {
         created_by: user.id,
       })
       // Invalidar todas las queries de tareas de este salón y esperar a que se refresque
-      await queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] }),
+        queryClient.invalidateQueries({ queryKey: ['task-dates', classroomId] }),
+      ])
       return task
     } catch (err) {
       console.error('Error creating task:', err)
@@ -91,7 +94,10 @@ export function useTasks(classroomId: string) {
     try {
       const updated = await updateTaskService(id, data)
       // Invalidar todas las queries de tareas de este salón
-      await queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] }),
+        queryClient.invalidateQueries({ queryKey: ['task-dates', classroomId] }),
+      ])
       return updated
     } catch (err) {
       console.error('Error updating task:', err)
@@ -103,7 +109,10 @@ export function useTasks(classroomId: string) {
     try {
       await deleteTaskService(id)
       // Invalidar todas las queries de tareas de este salón
-      await queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY_PREFIX, classroomId] }),
+        queryClient.invalidateQueries({ queryKey: ['task-dates', classroomId] }),
+      ])
     } catch (err) {
       console.error('Error deleting task:', err)
       throw err
